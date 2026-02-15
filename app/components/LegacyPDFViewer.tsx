@@ -84,13 +84,15 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
                 }
                 wrapper.appendChild(div);
 
-                // Optimized scale for mobile devices (memory safety)
+                // Optimized scale for mobile devices
+                // Increased for better quality (1.5 is a sweet spot for mobile retina)
                 const isMobile = window.innerWidth < 768;
-                const scale = isMobile ? 1.0 : 1.5;
+                const scale = isMobile ? 1.5 : 2.0;
                 const viewport = page.getViewport({ scale: scale });
 
                 const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
+                // Alpha: false improves performance by telling browser we don't need transparency
+                const context = canvas.getContext('2d', { alpha: false });
                 canvas.width = viewport.width;
                 canvas.height = viewport.height;
 
