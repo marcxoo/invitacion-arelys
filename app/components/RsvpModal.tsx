@@ -8,15 +8,16 @@ import { supabase } from '@/lib/supabase';
 interface RsvpModalProps {
     isOpen: boolean;
     onClose: () => void;
+    prefilledName?: string;
 }
 
-export default function RsvpModal({ isOpen, onClose }: RsvpModalProps) {
+export default function RsvpModal({ isOpen, onClose, prefilledName }: RsvpModalProps) {
     const [step, setStep] = useState<'form' | 'success'>('form');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Form State
-    const [name, setName] = useState('');
+    const [name, setName] = useState(prefilledName || '');
     const [count, setCount] = useState(1);
 
     async function handleSubmit(attending: boolean) {

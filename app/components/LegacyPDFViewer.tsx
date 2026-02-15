@@ -84,18 +84,23 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
                 }
                 wrapper.appendChild(div);
 
-                const viewport = page.getViewport({ scale: 2 });
+                // Optimized scale for mobile devices (memory safety)
+                const isMobile = window.innerWidth < 768;
+                const scale = isMobile ? 1.0 : 1.5;
+                const viewport = page.getViewport({ scale: scale });
+
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
                 canvas.width = viewport.width;
                 canvas.height = viewport.height;
 
-                canvas.style.width = '100.2%'; // Slightly wider to avoid edge aliasing
+                canvas.style.width = '100.2%';
                 canvas.style.height = 'auto';
                 canvas.style.display = 'block';
                 canvas.style.margin = '0 auto';
                 canvas.style.border = 'none';
-                canvas.style.imageRendering = 'crisp-edges'; // Better for text/graphics
+                canvas.style.backgroundColor = 'white'; // Force white background
+                canvas.style.imageRendering = 'auto'; // Default rendering for performance
 
                 div.appendChild(canvas);
                 await page.render({ canvasContext: context, viewport: viewport }).promise;
