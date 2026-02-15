@@ -96,13 +96,15 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
                 canvas.width = viewport.width;
                 canvas.height = viewport.height;
 
-                canvas.style.width = '100.2%';
+                canvas.style.width = '100.5%'; // Slightly more overlap to prevent edges
                 canvas.style.height = 'auto';
                 canvas.style.display = 'block';
                 canvas.style.margin = '0 auto';
                 canvas.style.border = 'none';
-                canvas.style.backgroundColor = 'white'; // Force white background
-                canvas.style.imageRendering = 'auto'; // Default rendering for performance
+                canvas.style.backgroundColor = '#fddbe6'; // Match theme to hide white gaps
+                canvas.style.imageRendering = 'auto';
+                // Crucial for mobile to remove bottom gap
+                canvas.style.verticalAlign = 'bottom';
 
                 div.appendChild(canvas);
                 await page.render({ canvasContext: context, viewport: viewport }).promise;
