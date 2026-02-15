@@ -24,6 +24,7 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
     const containerRef = useRef<HTMLDivElement>(null);
     const [libLoaded, setLibLoaded] = useState(false);
     const [isLoaded, setIsLoaded] = useState(false);
+    const [isReady, setIsReady] = useState(false);
     const [pdfPages, setPdfPages] = useState(0);
 
     // Notify parent
@@ -126,7 +127,7 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
                     createButton(overlay, 'rsvp-btn', rsvpPos.top, rsvpPos.left, rsvpPos.width, ICON_CHECK, onOpenRsvp);
                 }
             }
-            setIsLoaded(true);
+            setIsReady(true);
         } catch (err: any) {
             console.error('PDF Render Error:', err);
             setErrorMsg(err.message || 'Error al cargar la invitación.');
@@ -270,6 +271,10 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
         }
     };
 
+    const handleOpenClick = () => {
+        setIsLoaded(true);
+    };
+
     return (
         <>
             <Script src="/js/pdf.min.js" onLoad={() => setLibLoaded(true)} onError={() => setErrorMsg("No se pudo cargar la librería PDF.")} />
@@ -394,24 +399,34 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
                                         Reintentar
                                     </button>
                                 </div>
-                            ) : (
+                            ) : !isReady ? (
                                 <>
                                     <div className="text-[#ff4a77] text-4xl font-semibold animate-pulse tracking-tight select-none"
                                         style={{ fontFamily: '"Fredoka", sans-serif', textShadow: '0 2px 10px rgba(255,255,255,0.8)' }}>
                                         Cargando Invitación...
                                     </div>
-                                    {/* NEW NEON LOADING BAR */}
                                     <div className="w-64 h-4 bg-white/20 rounded-full mt-10 overflow-hidden border border-white/40 relative backdrop-blur-sm shadow-[0_0_20px_rgba(255,74,119,0.4)]">
-                                        {/* Base Gradient */}
                                         <div className="absolute inset-0 bg-gradient-to-r from-[#ff4a77] via-[#f578aa] to-[#ff4a77] opacity-80" />
-
-                                        {/* Moving Glow Bubble */}
                                         <div className="absolute inset-y-0 w-24 bg-gradient-to-r from-transparent via-white/60 to-transparent animate-magic-flow" />
-
-                                        {/* Inner Sparkles in Bar */}
                                         <div className="absolute inset-0 opacity-30 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] pointer-events-none" />
                                     </div>
                                 </>
+                            ) : (
+                                <div className="flex flex-col items-center animate-bounce-in">
+                                    <h2 className="text-[#ff4a77] text-3xl font-bold mb-6 drop-shadow-sm" style={{ fontFamily: '"Fredoka", sans-serif' }}>
+                                        ¡Todo listo!
+                                    </h2>
+                                    <button
+                                        onClick={handleOpenClick}
+                                        className="group relative bg-[#ff4a77] text-white text-xl px-10 py-4 rounded-full font-bold shadow-[0_10px_30px_rgba(255,74,119,0.5)] active:scale-95 transition-all hover:scale-105 overflow-hidden"
+                                    >
+                                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+                                        <span className="relative z-10 flex items-center gap-3">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M21.409 9.353a2.998 2.998 0 0 1 0 5.294L8.597 21.614C6.534 22.736 4 21.276 4 19.015V4.985c0-2.261 2.534-3.721 4.597-2.599l12.812 6.967Z" /></svg>
+                                            Ver Invitación
+                                        </span>
+                                    </button>
+                                </div>
                             )}
                         </div>
 
