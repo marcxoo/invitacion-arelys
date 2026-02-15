@@ -41,28 +41,15 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [coordsText, setCoordsText] = useState<{ [key: string]: string }>({});
 
-    // 0. PRE-FETCH PDF DATA
-    const pdfDataRef = useRef<any>(null);
-    useEffect(() => {
-        // Start fetching the PDF as soon as possible, in parallel with script loading
-        fetch(file)
-            .then(res => res.arrayBuffer())
-            .then(buffer => {
-                pdfDataRef.current = buffer;
-                if (libLoaded) renderPDF();
-            })
-            .catch(console.error);
-    }, [file]);
-
     // 1. RENDER PDF
     useEffect(() => {
-        if (libLoaded && pdfDataRef.current) {
+        if (libLoaded && !isReady) {
             renderPDF();
         }
-    }, [libLoaded]);
+    }, [libLoaded, isReady]);
 
     const renderPDF = async () => {
-        if (!window.pdfjsLib || !pdfDataRef.current) return;
+        if (!window.pdfjsLib) return;
 
         window.pdfjsLib.GlobalWorkerOptions.workerSrc = '/js/pdf.worker.min.js';
 
@@ -74,15 +61,8 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
                 if (saved) savedPos = JSON.parse(saved);
             } catch (e) { console.error(e); }
 
-            // Use the pre-fetched buffer for instant access
-            const loadingTask = window.pdfjsLib.getDocument({
-                data: pdfDataRef.current,
-                cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/cmaps/',
-                cMapPacked: true,
-                disableFontFace: false, // Performance: let browser handle fonts if possible
-                verbosity: 0 // Performance: less logging
-            });
-
+            // Using URL directly is more stable and supports streaming
+            const loadingTask = window.pdfjsLib.getDocument(file);
             const pdf = await loadingTask.promise;
 
             setPdfPages(pdf.numPages);
@@ -90,7 +70,6 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
             if (!wrapper) return;
             wrapper.innerHTML = '';
 
-            // Optimization: Detect mobile to adjust quality/speed
             const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
             for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -100,18 +79,14 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
                 div.className = 'relative w-full overflow-hidden flex flex-col items-center justify-center p-0 m-0 bg-[#fddbe6]';
                 div.style.lineHeight = '0';
                 div.style.fontSize = '0';
-                if (pageNum > 1) div.style.marginTop = '-2px';
+                if (pageNum > 1) div.style.marginTop = '-1px';
                 wrapper.appendChild(div);
 
                 const scale = isMobile ? 1.0 : 2.0;
                 const viewport = page.getViewport({ scale: scale });
 
                 const canvas = document.createElement('canvas');
-                // Performance: alpha false and willReadFrequently for faster canvas ops
-                const context = canvas.getContext('2d', {
-                    alpha: false,
-                    willReadFrequently: false
-                });
+                const context = canvas.getContext('2d', { alpha: false });
 
                 canvas.width = viewport.width;
                 canvas.height = viewport.height;
@@ -123,12 +98,9 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
 
                 div.appendChild(canvas);
 
-                // Optimized render with intent 'print' for faster execution if supported
                 await page.render({
                     canvasContext: context,
-                    viewport: viewport,
-                    intent: 'display',
-                    enableWebGL: true // Use hardware acceleration if available
+                    viewport: viewport
                 }).promise;
 
                 const overlay = document.createElement('div');
@@ -150,9 +122,10 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
             setIsReady(true);
         } catch (err: any) {
             console.error('PDF Render Error:', err);
-            setErrorMsg(err.message || 'Error al cargar la invitación.');
+            setErrorMsg('Error al cargar la invitación. Intenta recargar la página.');
         }
     };
+
 
     // 2. CREATE BUTTON
     const createButton = (parent: HTMLElement, id: string, top: string, left: string, width: string, icon: string, action: () => void) => {
