@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Invitación</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            background-color: #333;
+            min-height: 100vh;
+        }
+
+        #pdf-wrapper {
+            width: 100%;
+            height: 100vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .page-container {
+            position: relative;
+            margin: 10px 0;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Critical for interactivity: layers must match canvas size */
+        .page-container {
+            position: relative;
+        }
+
+        .interactive-btn {
+            position: absolute;
+            background-color: rgba(255, 0, 0, 0.3);
+            /* RED DEBUG VISIBILITY */
+            border: 2px solid red;
+            border-radius: 50%;
+            /* Circle hint */
+            z-index: 100 !important;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .textLayer,
+        .annotationLayer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            line-height: 1.0;
+            display: none !important;
+            /* Disable original layers */
+        }
+
+        /* Make links clickable */
+        .annotationLayer section {
+            cursor: pointer;
+        }
+
+        /* BRIDGERTON STYLE LOADER */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            /* Pure White Background for image blend */
+            background: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            flex-direction: column;
+            font-family: 'Great Vibes', cursive;
+            color: #333;
+            /* Darker text */
+        }
+
+        /* User Provided Logo Style */
+        .whistledown-logo {
+            width: 280px;
+            max-width: 85%;
+            height: auto;
+            margin-bottom: 25px;
+            animation: pulse-float 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse-float {
+            0% {
+                transform: scale(1) translateY(0);
+                filter: brightness(100%);
+            }
+
+            50% {
+                transform: scale(1.03) translateY(-8px);
+                filter: brightness(108%);
+            }
+
+            100% {
+                transform: scale(1) translateY(0);
+                filter: brightness(100%);
+            }
+        }
+
+        .loader-text {
+            font-size: 26px;
+            text-align: center;
+            margin: 0 20px;
+            animation: fadeText 3s infinite alternate;
+        }
+
+        @keyframes fadeText {
+            from {
+                opacity: 0.5;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* AUDIO PLAYER STYLES */
+        /* AUDIO PLAYER STYLES */
+        #audio-control {
+            position: fixed;
+            top: 100px;
+            /* Default starting pos */
+            right: 20px;
+            z-index: 900;
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 2px solid #D4AF37;
+            border-radius: 50%;
+            /* Circle */
+            display: none;
+            /* Hidden until loaded */
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            cursor: grab;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            /* Improved transition */
+            touch-action: none;
+            /* Prevent scroll while dragging */
+        }
+
+        #audio-control:active {
+            transform: scale(0.95);
+            cursor: grabbing;
+        }
+
+        #audio-control.translucent {
+            opacity: 0.4;
+            /* Translucent state */
+        }
+
+        #audio-control.translucent:hover,
+        #audio-control.translucent:active {
+            opacity: 1;
+            /* Restore on interact */
+        }
+
+        #audio-control.hidden-scroll {
+            transform: translateX(150%) scale(0.5);
+            /* Fly out */
+            opacity: 0 !important;
+            pointer-events: none;
+        }
+
+        #audio-text {
+            display: none;
+            /* Hide text for bubble */
+        }
+
+        .audio-icon {
+            width: 18px;
+            height: 18px;
+            fill: #6A4B5F;
+        }
+
+        .audio-wave {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            height: 15px;
+        }
+
+        .bar {
+            width: 3px;
+            height: 100%;
+            background: #D4AF37;
+            animation: wave 1s infinite ease-in-out;
+            animation-play-state: paused;
+        }
+
+        .bar:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .bar:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .bar:nth-child(4) {
+            animation-delay: 0.3s;
+        }
+
+        @keyframes wave {
+
+            0%,
+            100% {
+                height: 20%;
+            }
+
+            50% {
+                height: 100%;
+            }
+        }
+
+        .playing .bar {
+            animation-play-state: running;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="loader">
+        <img src="logo_lady.png" alt="Lady Whistledown's Society Papers" class="whistledown-logo">
+        <p class="loader-text">Su invitación se está preparando...</p>
+    </div>
+
+    <!-- AUDIO BUTTON -->
+    <div id="audio-control" onclick="toggleAudio()">
+        <svg class="audio-icon" viewBox="0 0 24 24">
+            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
+        </svg>
+        <span id="audio-text">Escuchar Carta</span>
+        <div class="audio-wave">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+    </div>
+
+    <audio id="bg-audio" src="audio_carta.mp3" preload="auto"></audio>
+
+    <div id="pdf-wrapper"></div>
+
+
+
+    <script>
+        const url = 'inviteeee222__compressed.pdf';
+
+        async function renderPDF() {
+            // Safety Timeout: Force hide loader after 10 seconds if stuck
+            const safetyTimeout = setTimeout(() => {
+                const loader = document.getElementById('loader');
+                if (loader && loader.style.display !== 'none') {
+                    console.warn("PDF Render timed out, forcing display.");
+                    loader.style.display = 'none';
+                }
+            }, 10000);
+
+            try {
+                const pdf = await pdfjsLib.getDocument(url).promise;
+
+                const wrapper = document.getElementById('pdf-wrapper');
+
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+
+                    // Create container for the page
+                    const div = document.createElement('div');
+                    div.className = 'page-container';
+                    wrapper.appendChild(div);
+
+                    // Dynamic scale based on screen width
+                    const screenWidth = window.innerWidth > 800 ? 800 : window.innerWidth;
+                    const unscaledViewport = page.getViewport({ scale: 1 });
+                    const displayScale = screenWidth / unscaledViewport.width;
+                    const displayViewport = page.getViewport({ scale: displayScale });
+
+                    // Set CSS dimensions (layout size)
+                    div.style.width = Math.floor(displayViewport.width) + 'px';
+                    div.style.height = Math.floor(displayViewport.height) + 'px';
+
+                    // 1. Render Canvas (The visual part)
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+
+                    // High-DPI Rendering Logic
+                    // We render at a higher resolution than the CSS display size
+                    const outputScale = window.devicePixelRatio || 1;
+                    const renderScale = displayScale * outputScale;
+                    const renderViewport = page.getViewport({ scale: renderScale });
+
+                    canvas.width = Math.floor(renderViewport.width);
+                    canvas.height = Math.floor(renderViewport.height);
+
+                    // Force CSS to stay at display size
+                    canvas.style.width = Math.floor(displayViewport.width) + 'px';
+                    canvas.style.height = Math.floor(displayViewport.height) + 'px';
+
+                    div.appendChild(canvas);
+
+                    const renderContext = {
+                        canvasContext: context,
+                        viewport: renderViewport
+                    };
+                    await page.render(renderContext).promise;
+
+                    /**
+                     * MANUAL OVERLAY SYSTEM
+                     * We ignore PDF internal links and place our own HTML layer on top.
+                     * This ensures it works 100% on mobile.
+                     */
+                    const overlayDiv = document.createElement('div');
+                    overlayDiv.className = 'manual-overlay';
+                    overlayDiv.style.position = 'absolute';
+                    overlayDiv.style.top = '0';
+                    overlayDiv.style.left = '0';
+                    overlayDiv.style.width = '100%';
+                    overlayDiv.style.height = '100%';
+                    overlayDiv.style.zIndex = '50'; // On top of canvas
+                    div.appendChild(overlayDiv);
+
+                    // --- FINAL INTERACTIVE BUTTONS ---
+
+                    // --- BUTTON 1: LOCATION ---
+                    // Coordinates provided by user: T:69.9% L:13.5% W:38% H:8%
+                    const btnLocation = document.createElement('a');
+                    btnLocation.href = 'https://maps.app.goo.gl/4hYAJJ7P2VfVS9uR6';
+                    btnLocation.className = 'interactive-btn';
+                    btnLocation.style.top = '74.8%';
+                    btnLocation.style.left = '12.6%';
+                    btnLocation.style.width = '40.6%';
+                    btnLocation.style.height = '6.9%';
+                    // Invisible but clickable
+                    btnLocation.style.opacity = '0';
+                    btnLocation.style.borderRadius = '50%';
+                    overlayDiv.appendChild(btnLocation);
+
+                    // --- BUTTON 2: CONFIRMATION ---
+                    // Coordinates provided by user: T:78.3% L:49.1% W:37% H:8%
+                    const btnConfirm = document.createElement('a');
+                    btnConfirm.href = '#';
+                    btnConfirm.className = 'interactive-btn';
+                    btnConfirm.style.top = '82.1%';
+                    btnConfirm.style.left = '48.0%';
+                    btnConfirm.style.width = '38.9%';
+                    btnConfirm.style.height = '6.6%';
+                    // Invisible but clickable
+                    btnConfirm.style.opacity = '0';
+                    btnConfirm.style.borderRadius = '50%';
+
+                    btnConfirm.onclick = (e) => {
+                        e.preventDefault();
+                        showRsvpModal();
+                    };
+                    overlayDiv.appendChild(btnConfirm);
+                }
+
+
+                // Hide loader ONLY after all pages are rendered
+                document.getElementById('loader').style.display = 'none';
+
+                // Show Audio Control
+                document.getElementById('audio-control').style.display = 'flex';
+
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('loader').innerHTML = '<p>Error al cargar. Intente recargar.</p>';
+            }
+        }
+
+        function enableEditMode() {
+            // Create Debug Panel
+            const panel = document.createElement('div');
+            Object.assign(panel.style, {
+                position: 'fixed', bottom: '10px', right: '10px', width: '300px',
+                background: 'rgba(0,0,0,0.8)', color: '#0f0', padding: '10px',
+                fontFamily: 'monospace', fontSize: '12px', zIndex: 99999,
+                pointerEvents: 'none', whiteSpace: 'pre'
+            });
+            panel.innerHTML = "MODO EDICIÓN ACTIVADO<br>Arrastra y redimensiona (borde inferior/derecho)<br>Haz click en un botón para ver sus datos.";
+            document.body.appendChild(panel);
+
+            const buttons = document.querySelectorAll('.interactive-btn');
+
+            buttons.forEach(btn => {
+                // Ensure visible
+                btn.style.opacity = '0.5';
+                btn.style.border = '2px dashed yellow';
+                btn.style.resize = 'both';
+                btn.style.overflow = 'hidden';
+                btn.innerText = (btn.href.includes('maps') ? '📍 MAPA' : '✅ RSVP');
+                btn.style.color = 'white';
+                btn.style.display = 'flex';
+                btn.style.alignItems = 'center';
+                btn.style.justifyContent = 'center';
+                btn.style.fontWeight = 'bold';
+                btn.style.fontSize = '10px';
+
+                // Draggable logic
+                let isDragging = false;
+                let startX, startY, startLeft, startTop;
+
+                btn.addEventListener('mousedown', (e) => {
+                    // Check if clicking resize handle (bottom-right)
+                    const rect = btn.getBoundingClientRect();
+                    if (e.clientX > rect.right - 10 && e.clientY > rect.bottom - 10) return; // Allow resize
+
+                    isDragging = true;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    startLeft = parseFloat(btn.style.left) || 0;
+                    startTop = parseFloat(btn.style.top) || 0;
+
+                    // Convert % to px for dragging calculation if needed, 
+                    // but easier to work with computed px then convert back to %
+                    e.preventDefault();
+                });
+
+                window.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+
+                    const parent = btn.offsetParent; // The .page-container or overlay
+                    if (!parent) return;
+                    const pRect = parent.getBoundingClientRect();
+
+                    // Calculate delta in pixels
+                    const dx = e.clientX - startX;
+                    const dy = e.clientY - startY;
+
+                    // Current position in pixels
+                    // We need to know the starting px position. 
+                    // Since specific styles are %, let's use offsetLeft/Top
+
+                    // Actually, simpler approach: Update directly
+                    // It's tricky to mix % and px dragging. 
+                    // Let's rely on standard offset logic
+                });
+
+                // SIMPLIFIED DRAG (Mouse down/up handled better with a helper)
+                makeElementDraggable(btn, panel);
+
+                // Monitor Resize
+                new ResizeObserver(() => updatePanel(btn, panel)).observe(btn);
+            });
+        }
+
+        function makeElementDraggable(el, panel) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+
+            el.onmousedown = dragMouseDown;
+
+            function dragMouseDown(e) {
+                // Ignore if clicking near bottom-right (resize area)
+                const rect = el.getBoundingClientRect();
+                if (e.clientX > rect.right - 20 && e.clientY > rect.bottom - 20) return;
+
+                e.preventDefault();
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+
+                // Active style
+                el.style.border = '2px solid cyan';
+                updatePanel(el, panel);
+            }
+
+            function elementDrag(e) {
+                e.preventDefault();
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+
+                // Set new position in PX temporarily
+                el.style.top = (el.offsetTop - pos2) + "px";
+                el.style.left = (el.offsetLeft - pos1) + "px";
+
+                updatePanel(el, panel);
+            }
+
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+
+                // Convert final px to %
+                const parent = el.offsetParent;
+                if (parent) {
+                    const lPercent = (el.offsetLeft / parent.offsetWidth) * 100;
+                    const tPercent = (el.offsetTop / parent.offsetHeight) * 100;
+
+                    el.style.left = lPercent.toFixed(1) + "%";
+                    el.style.top = tPercent.toFixed(1) + "%";
+                }
+
+                el.style.border = '2px dashed yellow';
+                updatePanel(el, panel);
+            }
+        }
+
+        function updatePanel(el, panel) {
+            const parent = el.offsetParent;
+            if (!parent) return;
+
+            const l = (el.offsetLeft / parent.offsetWidth) * 100;
+            const t = (el.offsetTop / parent.offsetHeight) * 100;
+            const w = (el.offsetWidth / parent.offsetWidth) * 100;
+            const h = (el.offsetHeight / parent.offsetHeight) * 100;
+
+            const name = el.innerText;
+
+            panel.innerHTML = `<strong>${name}</strong>
+Top: ${t.toFixed(1)}%
+Left: ${l.toFixed(1)}%
+Width: ${w.toFixed(1)}%
+Height: ${h.toFixed(1)}%
+------------------
+Copia estos valores.`;
+        }
+
+
+        // Unique Namespace for this event
+        const NAMESPACE = 'invitacion_luisana_gm_15_final';
+        const KEY_YES = 'asistencia_si';
+        const KEY_NO = 'asistencia_no';
+
+        // --- SUPABASE CONFIG ---
+        const SUPABASE_URL = 'https://bpibrqhnrtkonukktjni.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwaWJycWhucnRrb251a2t0am5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2OTE0MDIsImV4cCI6MjA4NDI2NzQwMn0.a0D2X-6ZfDULYK-uzmjVySBsEeyQaKCthh5vxeAydK4';
+
+        // --- RSVP LOGIC ---
+
+        // Robust Async Reset Logic
+        (async function handleReset() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('action') === 'reset') {
+                const previousVote = localStorage.getItem('voted_luisana_15');
+
+                if (previousVote === KEY_YES || previousVote === KEY_NO) {
+                    // Show immediate feedback
+                    const loader = document.createElement('div');
+                    Object.assign(loader.style, {
+                        position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+                        background: 'rgba(255,255,255,0.95)', zIndex: 9999,
+                        display: 'flex', justifyContent: 'center', alignItems: 'center',
+                        flexDirection: 'column', fontFamily: 'sans-serif'
+                    });
+                    loader.innerHTML = '<div style="font-size: 40px; margin-bottom: 20px;">⏳</div><h3>Eliminando voto anterior...</h3>';
+                    document.body.appendChild(loader);
+
+                    try {
+                        // Just wait a bit to simulate work
+                        await new Promise(r => setTimeout(r, 500));
+                    } catch (e) {
+                        console.error("Error:", e);
+                    }
+
+                    document.body.removeChild(loader);
+                }
+
+                localStorage.removeItem('voted_luisana_15');
+                // Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+                alert("✅ ¡Dispositivo habilitado de nuevo!\nAhora puedes confirmar tu asistencia correctamente.");
+            }
+        })();
+
+
+        function checkVoted() {
+            return localStorage.getItem('voted_luisana_15');
+        }
+
+        function showRsvpModal() {
+            const currentVote = checkVoted();
+
+            // Create Modal Elements dynamically
+            const modalOverlay = document.createElement('div');
+            modalOverlay.id = 'rsvp-modal-overlay';
+            Object.assign(modalOverlay.style, {
+                position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+                background: 'rgba(0,0,0,0.6)', zIndex: 2000,
+                display: 'flex', justifyContent: 'center', alignItems: 'center'
+            });
+
+            const card = document.createElement('div');
+            Object.assign(card.style, {
+                background: '#FDFBF7', padding: '30px', borderRadius: '15px',
+                border: '2px solid #D4AF37', width: '85%', maxWidth: '350px',
+                textAlign: 'center', fontFamily: "'Great Vibes', cursive",
+                boxShadow: '0 10px 25px rgba(0,0,0,0.5)', position: 'relative'
+            });
+
+            const closeBtn = document.createElement('div');
+            closeBtn.innerText = "✖";
+            Object.assign(closeBtn.style, {
+                position: 'absolute', top: '10px', right: '15px', fontSize: '20px',
+                cursor: 'pointer', fontFamily: 'sans-serif', color: '#999'
+            });
+            closeBtn.onclick = () => document.body.removeChild(modalOverlay);
+            card.appendChild(closeBtn);
+
+            // STATE 1: ALREADY VOTED - SHOW CHANGE OPTION
+            if (currentVote) {
+                const title = document.createElement('h2');
+                title.innerText = "Ya has respondido";
+                Object.assign(title.style, {
+                    color: '#6A4B5F', fontSize: '36px', margin: '0 0 10px 0',
+                    fontFamily: "'Great Vibes', cursive", fontWeight: 'normal'
+                });
+
+                const status = document.createElement('p');
+                const voteText = currentVote === KEY_YES ? "Sí, asistiré" : "No asistiré";
+                const voteColor = currentVote === KEY_YES ? "#2ecc71" : "#e74c3c";
+                status.innerHTML = `Tu respuesta actual:<br><span style="color:${voteColor}; font-size: 1.4em; font-weight:bold; display:block; margin-top:5px;">${voteText}</span>`;
+                Object.assign(status.style, {
+                    fontFamily: "'Playfair Display', serif", fontSize: '18px',
+                    margin: "20px 0", color: '#555', lineHeight: '1.4'
+                });
+
+                const btnChange = document.createElement('button');
+                btnChange.innerText = "Cambiar mi respuesta";
+                // Use Plum color for a more premium look than grey
+                styleBtn(btnChange, '#6A4B5F');
+
+                btnChange.onclick = async () => {
+                    btnChange.innerText = "Procesando...";
+                    btnChange.disabled = true;
+                    btnChange.style.opacity = 0.7;
+
+                    try {
+                        localStorage.removeItem('voted_luisana_15');
+                        document.body.removeChild(modalOverlay);
+                        showRsvpModal(); // Re-open fresh
+                    } catch (e) {
+                        alert("Error de conexión. Intenta de nuevo.");
+                        btnChange.innerText = "Cambiar mi respuesta";
+                        btnChange.disabled = false;
+                        btnChange.style.opacity = 1;
+                    }
+                };
+
+                card.appendChild(title);
+                card.appendChild(status);
+                card.appendChild(btnChange);
+            }
+            // STATE 2: FRESH VOTE
+            else {
+                const title = document.createElement('h2');
+                title.innerText = "¿Nos acompañarás?";
+                title.style.color = '#6A4B5F';
+                title.style.fontSize = '32px';
+                title.style.margin = '0 0 20px 0';
+
+                // --- NAME SECTION ---
+                const labelName = document.createElement('label');
+                labelName.innerText = "Nombre de la Familia / Invitado";
+                Object.assign(labelName.style, {
+                    display: 'block', textAlign: 'left', color: '#6A4B5F',
+                    marginBottom: '5px', fontSize: '14px', fontFamily: "'Playfair Display', serif"
+                });
+
+                const nameInput = document.createElement('input');
+                nameInput.type = 'text';
+                nameInput.id = 'guest-name-input';
+                nameInput.placeholder = 'Ej. Familia Pérez';
+                Object.assign(nameInput.style, {
+                    width: '100%', padding: '10px',
+                    border: '1px solid #D4AF37', borderRadius: '5px',
+                    fontFamily: "'Playfair Display', serif", fontSize: '16px',
+                    boxSizing: 'border-box', marginBottom: '15px'
+                });
+
+                // --- COUNT SECTION ---
+                const countContainer = document.createElement('div');
+                Object.assign(countContainer.style, {
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    marginBottom: '25px', background: '#fff', padding: '10px',
+                    border: '1px dashed #D4AF37', borderRadius: '5px'
+                });
+
+                const labelCount = document.createElement('label');
+                labelCount.innerText = "¿Cuántas personas asistirán?";
+                Object.assign(labelCount.style, {
+                    color: '#333', fontSize: '15px', fontFamily: "'Playfair Display', serif"
+                });
+
+                const countInput = document.createElement('input');
+                countInput.type = 'number';
+                countInput.id = 'guest-count-input';
+                countInput.min = '1';
+                countInput.value = '1';
+                Object.assign(countInput.style, {
+                    width: '60px', padding: '5px', textAlign: 'center',
+                    border: '1px solid #ccc', borderRadius: '4px',
+                    fontSize: '18px', fontWeight: 'bold', color: '#6A4B5F'
+                });
+
+                countContainer.appendChild(labelCount);
+                countContainer.appendChild(countInput);
+
+                const btnYes = document.createElement('button');
+                btnYes.innerText = "Sí, asistiré con gusto";
+                styleBtn(btnYes, '#2ecc71');
+                btnYes.onclick = () => {
+                    const name = nameInput.value.trim();
+                    const count = parseInt(countInput.value) || 1;
+                    if (!name) { alert("Por favor ingresa tu nombre."); return; }
+                    if (count < 1) { alert("El número de personas debe ser al menos 1."); return; }
+                    submitVote(KEY_YES, "¡Qué alegría! Tu asistencia ha sido confirmada.", modalOverlay, name, true, count);
+                };
+
+                const btnNo = document.createElement('button');
+                btnNo.innerText = "Lamentablemente, no asistiré";
+                styleBtn(btnNo, '#e74c3c');
+                btnNo.onclick = () => {
+                    const name = nameInput.value.trim();
+                    if (!name) { alert("Por favor ingresa tu nombre."); return; }
+                    submitVote(KEY_NO, "Entendemos. Gracias por avisarnos.", modalOverlay, name, false, 1);
+                };
+
+                card.appendChild(title);
+                card.appendChild(labelName);
+                card.appendChild(nameInput);
+                card.appendChild(countContainer);
+                card.appendChild(btnYes);
+                card.appendChild(btnNo);
+            }
+
+            modalOverlay.appendChild(card);
+            document.body.appendChild(modalOverlay);
+        }
+
+        function styleBtn(btn, color) {
+            Object.assign(btn.style, {
+                display: 'block', width: '100%', padding: '12px', margin: '10px 0',
+                border: 'none', borderRadius: '8px', background: color, color: 'white',
+                fontSize: '18px', cursor: 'cursor', fontFamily: "'Playfair Display', serif"
+            });
+        }
+
+        async function submitVote(key, successMsg, modal, guestName, asistira, guestCount) {
+            // Disable buttons
+            const buttons = modal.querySelectorAll('button');
+            buttons.forEach(b => { b.disabled = true; b.style.opacity = 0.6; b.innerText = "Enviando..."; });
+
+            try {
+                // Save to Supabase (Sole Source of Truth)
+                if (guestName) {
+                    const res = await fetch(`${SUPABASE_URL}/rest/v1/rsvp`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'apikey': SUPABASE_KEY,
+                            'Authorization': `Bearer ${SUPABASE_KEY}`,
+                            'Prefer': 'return=minimal'
+                        },
+                        body: JSON.stringify({
+                            nombre: guestName,
+                            asistira: asistira,
+                            cantidad: guestCount
+                        })
+                    });
+                    if (!res.ok) throw new Error('Error al guardar en Supabase');
+                }
+
+                // Mark locally
+                localStorage.setItem('voted_luisana_15', key);
+
+                alert(successMsg);
+                document.body.removeChild(modal);
+            } catch (e) {
+                console.error(e);
+                alert("Error de conexión. Inténtalo de nuevo.");
+                buttons.forEach(b => { b.disabled = false; b.style.opacity = 1; b.innerText = "Reintentar"; });
+            }
+        }
+
+        // --- AUDIO LOGIC ---
+        const audio = document.getElementById('bg-audio');
+        const audioControl = document.getElementById('audio-control');
+
+        // --- DRAG LOGIC ---
+        let isDragging = false;
+        let hasMoved = false;
+
+        function makeDraggable(el) {
+            let startX, startY, initialLeft, initialTop;
+
+            const onStart = (e) => {
+                // e.preventDefault(); // Don't prevent default immediately to allow click
+                hasMoved = false;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                startX = clientX;
+                startY = clientY;
+
+                const rect = el.getBoundingClientRect();
+                initialLeft = rect.left;
+                initialTop = rect.top;
+
+                // Clear any preset positioning to allow absolute movement
+                el.style.right = 'auto';
+                el.style.left = initialLeft + 'px';
+                el.style.top = initialTop + 'px';
+
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('touchmove', onMove, { passive: false });
+                document.addEventListener('mouseup', onEnd);
+                document.addEventListener('touchend', onEnd);
+            };
+
+            const onMove = (e) => {
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                const dx = clientX - startX;
+                const dy = clientY - startY;
+
+                if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+                    hasMoved = true;
+                    if (e.cancelable) e.preventDefault(); // Stop scrolling if dragging
+                }
+
+                let newLeft = initialLeft + dx;
+                let newTop = initialTop + dy;
+
+                // Restrict to window bounds
+                const maxLeft = window.innerWidth - el.offsetWidth;
+                const maxTop = window.innerHeight - el.offsetHeight;
+
+                /* Clamp values */
+                if (newLeft < 0) newLeft = 0;
+                if (newLeft > maxLeft) newLeft = maxLeft;
+                if (newTop < 0) newTop = 0;
+                if (newTop > maxTop) newTop = maxTop;
+
+                el.style.left = newLeft + 'px';
+                el.style.top = newTop + 'px';
+            };
+
+            const onEnd = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('touchmove', onMove);
+                document.removeEventListener('mouseup', onEnd);
+                document.removeEventListener('touchend', onEnd);
+            };
+
+            el.addEventListener('mousedown', onStart);
+            el.addEventListener('touchstart', onStart, { passive: false });
+        }
+
+        makeDraggable(audioControl);
+
+        // Click handler (only if not dragged)
+        audioControl.onclick = (e) => {
+            if (hasMoved) {
+                e.preventDefault();
+                return;
+            }
+            toggleAudio();
+        };
+
+        function toggleAudio() {
+            if (audio.paused) {
+                audio.play().then(() => {
+                    audioControl.classList.add('playing');
+                    audioControl.classList.add('translucent'); // Go translucent on play
+                }).catch(e => {
+                    console.error("Audio playback failed", e);
+                    // alert("Touch required");
+                });
+            } else {
+                audio.pause();
+                audioControl.classList.remove('playing');
+                audioControl.classList.remove('translucent'); // Restore visibility
+            }
+        }
+
+        audio.onended = () => {
+            audioControl.classList.remove('playing');
+            audioControl.classList.remove('translucent');
+        };
+
+        // --- SCROLL LOGIC ---
+        let lastScrollTop = 0;
+        const pdfWrapper = document.getElementById('pdf-wrapper');
+
+        pdfWrapper.addEventListener('scroll', () => {
+            const st = pdfWrapper.scrollTop; // Get scroll from wrapper
+
+            if (st > lastScrollTop && st > 50) { // Reduced threshold
+                // Scrolling Down -> Hide
+                audioControl.classList.add('hidden-scroll');
+            } else {
+                // Scrolling Up -> Show
+                audioControl.classList.remove('hidden-scroll');
+            }
+            lastScrollTop = st <= 0 ? 0 : st;
+        }, false);
+
+        renderPDF();
+    </script>
+</body>
+
+</html>

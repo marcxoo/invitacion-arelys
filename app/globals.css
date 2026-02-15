@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+:root {
+  /* Baby Mini Mouse / Invitation Palette */
+  --baby-pink: #FFD1DC;
+  --hot-pink: #FF69B4;
+  --plum: #6A4B5F;
+  --gold: #D4AF37;
+  --paper: #FDFBF7;
+  --white: #ffffff;
+
+  --background: var(--paper);
+  --foreground: var(--plum);
+
+  --font-vibes: 'Great Vibes', cursive;
+  --font-playfair: 'Playfair Display', serif;
+}
+
+@theme {
+  --color-baby-pink: var(--baby-pink);
+  --color-hot-pink: var(--hot-pink);
+  --color-plum: var(--plum);
+  --color-gold: var(--gold);
+  --color-paper: var(--paper);
+
+  --font-vibes: var(--font-vibes);
+  --font-playfair: var(--font-playfair);
+}
+
+body {
+  background: var(--paper);
+  color: var(--plum);
+}
