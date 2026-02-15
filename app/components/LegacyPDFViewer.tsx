@@ -36,6 +36,8 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
     // Edit Mode State
     const [editMode, setEditMode] = useState(false);
     const [showSavedMsg, setShowSavedMsg] = useState(false);
+    // State for error handling
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [coordsText, setCoordsText] = useState<{ [key: string]: string }>({});
 
     // 1. RENDER PDF
@@ -47,16 +49,20 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
 
     const renderPDF = async () => {
         if (!window.pdfjsLib) return;
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        // Use local worker to avoid CDN issues or blocking
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = '/js/pdf.worker.min.js';
 
         try {
+            setErrorMsg(null);
             let savedPos: any = {};
             try {
                 const saved = localStorage.getItem('invitation_coords');
                 if (saved) savedPos = JSON.parse(saved);
             } catch (e) { console.error(e); }
 
-            const pdf = await window.pdfjsLib.getDocument(file).promise;
+            const loadingTask = window.pdfjsLib.getDocument(file);
+            const pdf = await loadingTask.promise;
+
             setPdfPages(pdf.numPages);
             const wrapper = containerRef.current;
             if (!wrapper) return;
@@ -114,8 +120,9 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
                 }
             }
             setIsLoaded(true);
-        } catch (err) {
-            console.error(err);
+        } catch (err: any) {
+            console.error('PDF Render Error:', err);
+            setErrorMsg(err.message || 'Error al cargar la invitación.');
         }
     };
 
@@ -127,38 +134,10 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
             position: 'absolute', top, left, width,
             aspectRatio: '1/1', // Ensure container is square
             cursor: 'pointer', zIndex: 20,
+            // Invisible by default (hotspot)
+            background: 'transparent',
             display: 'flex', alignItems: 'center', justifyContent: 'center'
         });
-
-        const bubble = document.createElement('div');
-        bubble.className = "bubble-visual animate-pulse";
-        Object.assign(bubble.style, {
-            width: '100%', height: '100%',
-            background: 'rgba(255, 20, 147, 0.45)',
-            border: '3px solid #D4AF37',
-            borderRadius: '50%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 25px rgba(212, 175, 55, 0.8)',
-            willChange: 'transform'
-        });
-
-        // Wrap icon to scale it
-        const iconWrap = document.createElement('div');
-        iconWrap.style.width = '60%';
-        iconWrap.style.height = '60%';
-        iconWrap.style.display = 'flex';
-        iconWrap.style.alignItems = 'center';
-        iconWrap.style.justifyContent = 'center';
-        iconWrap.innerHTML = icon;
-        // Make the SVG inside scale
-        const svg = iconWrap.querySelector('svg');
-        if (svg) {
-            svg.style.width = '100%';
-            svg.style.height = '100%';
-        }
-
-        bubble.appendChild(iconWrap);
-        btn.appendChild(bubble);
 
         const clickHandler = (e: Event) => {
             if (document.body.classList.contains('is-edit-mode')) {
@@ -182,24 +161,23 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
 
         const buttons = wrapper.querySelectorAll('[id$="-btn"]');
         buttons.forEach((btn: any) => {
-            const visual = btn.querySelector('.bubble-visual');
             btn.onmousedown = null;
             btn.ontouchstart = null;
 
             if (editMode) {
                 // Resize / Move Style
                 btn.style.border = '2px dashed #FFD700'; // Gold
+                btn.style.background = 'rgba(255, 20, 147, 0.3)'; // Visible in edit mode
                 btn.style.resize = 'horizontal'; // Aspect ratio handles height
                 btn.style.overflow = 'visible';
-                if (visual) visual.style.pointerEvents = 'none';
 
                 btn.onmousedown = (e: MouseEvent) => startDrag(e, btn, false);
                 btn.ontouchstart = (e: TouchEvent) => startDrag(e, btn, true);
             } else {
-                // Normal Style
+                // Normal Style (Invisible)
                 btn.style.border = 'none';
+                btn.style.background = 'transparent';
                 btn.style.resize = 'none';
-                if (visual) visual.style.pointerEvents = 'auto';
             }
         });
     }, [editMode, isLoaded]);
@@ -287,7 +265,7 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
 
     return (
         <>
-            <Script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" onLoad={() => setLibLoaded(true)} />
+            <Script src="/js/pdf.min.js" onLoad={() => setLibLoaded(true)} onError={() => setErrorMsg("No se pudo cargar la librería PDF.")} />
 
             {showSavedMsg && (
                 <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] bg-green-500 text-white px-8 py-4 rounded-xl shadow-2xl font-bold text-xl">
@@ -397,22 +375,40 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
                             />
                         </div>
 
-                        <div className="relative z-10 mt-10 flex flex-col items-center">
-                            <div className="text-[#ff4a77] text-4xl font-semibold animate-pulse tracking-tight select-none text-center px-4"
-                                style={{ fontFamily: '"Fredoka", sans-serif', textShadow: '0 2px 10px rgba(255,255,255,0.8)' }}>
-                                Cargando Invitación...
-                            </div>
-                            {/* NEW NEON LOADING BAR */}
-                            <div className="w-64 h-4 bg-white/20 rounded-full mt-10 overflow-hidden border border-white/40 relative backdrop-blur-sm shadow-[0_0_20px_rgba(255,74,119,0.4)]">
-                                {/* Base Gradient */}
-                                <div className="absolute inset-0 bg-gradient-to-r from-[#ff4a77] via-[#f578aa] to-[#ff4a77] opacity-80" />
+                        <div className="relative z-10 mt-10 flex flex-col items-center px-4 text-center">
+                            {errorMsg ? (
+                                <div className="bg-white/90 p-6 rounded-2xl shadow-xl max-w-sm border-2 border-red-200">
+                                    <h3 className="text-red-500 font-bold text-xl mb-2">¡Ups! Hubo un problema</h3>
+                                    <p className="text-gray-600 mb-4 text-sm">{errorMsg}</p>
+                                    <button
+                                        onClick={() => window.location.reload()}
+                                        className="bg-[#ff4a77] text-white px-6 py-2 rounded-full font-bold shadow-lg active:scale-95 transition-transform"
+                                    >
+                                        Reintentar
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="text-[#ff4a77] text-4xl font-semibold animate-pulse tracking-tight select-none"
+                                        style={{ fontFamily: '"Fredoka", sans-serif', textShadow: '0 2px 10px rgba(255,255,255,0.8)' }}>
+                                        Cargando Invitación...
+                                    </div>
+                                    {/* NEW NEON LOADING BAR */}
+                                    <div className="w-64 h-4 bg-white/20 rounded-full mt-10 overflow-hidden border border-white/40 relative backdrop-blur-sm shadow-[0_0_20px_rgba(255,74,119,0.4)]">
+                                        {/* Base Gradient */}
+                                        <div className="absolute inset-0 bg-gradient-to-r from-[#ff4a77] via-[#f578aa] to-[#ff4a77] opacity-80" />
 
-                                {/* Moving Glow Bubble */}
-                                <div className="absolute inset-y-0 w-24 bg-gradient-to-r from-transparent via-white/60 to-transparent animate-magic-flow" />
+                                        {/* Moving Glow Bubble */}
+                                        <div className="absolute inset-y-0 w-24 bg-gradient-to-r from-transparent via-white/60 to-transparent animate-magic-flow" />
 
-                                {/* Inner Sparkles in Bar */}
-                                <div className="absolute inset-0 opacity-30 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] pointer-events-none" />
-                            </div>
+                                        {/* Inner Sparkles in Bar */}
+                                        <div className="absolute inset-0 opacity-30 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] pointer-events-none" />
+                                    </div>
+                                    <p className="mt-4 text-[#f578aa] text-sm font-medium opacity-80 animate-pulse">
+                                        Preparando magia... (Puede tardar un poco)
+                                    </p>
+                                </>
+                            )}
                         </div>
 
                         <style jsx>{`
