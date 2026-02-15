@@ -411,9 +411,6 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
                                         {/* Inner Sparkles in Bar */}
                                         <div className="absolute inset-0 opacity-30 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] pointer-events-none" />
                                     </div>
-                                    <p className="mt-4 text-[#f578aa] text-sm font-medium opacity-80 animate-pulse">
-                                        Preparando magia... (Puede tardar un poco)
-                                    </p>
                                 </>
                             )}
                         </div>
