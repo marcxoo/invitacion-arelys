@@ -41,16 +41,29 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [coordsText, setCoordsText] = useState<{ [key: string]: string }>({});
 
+    // 0. PRE-FETCH PDF DATA
+    const pdfDataRef = useRef<any>(null);
+    useEffect(() => {
+        // Start fetching the PDF as soon as possible, in parallel with script loading
+        fetch(file)
+            .then(res => res.arrayBuffer())
+            .then(buffer => {
+                pdfDataRef.current = buffer;
+                if (libLoaded) renderPDF();
+            })
+            .catch(console.error);
+    }, [file]);
+
     // 1. RENDER PDF
     useEffect(() => {
-        if (libLoaded) {
+        if (libLoaded && pdfDataRef.current) {
             renderPDF();
         }
     }, [libLoaded]);
 
     const renderPDF = async () => {
-        if (!window.pdfjsLib) return;
-        // Use local worker to avoid CDN issues or blocking
+        if (!window.pdfjsLib || !pdfDataRef.current) return;
+
         window.pdfjsLib.GlobalWorkerOptions.workerSrc = '/js/pdf.worker.min.js';
 
         try {
@@ -61,7 +74,15 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
                 if (saved) savedPos = JSON.parse(saved);
             } catch (e) { console.error(e); }
 
-            const loadingTask = window.pdfjsLib.getDocument(file);
+            // Use the pre-fetched buffer for instant access
+            const loadingTask = window.pdfjsLib.getDocument({
+                data: pdfDataRef.current,
+                cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/cmaps/',
+                cMapPacked: true,
+                disableFontFace: false, // Performance: let browser handle fonts if possible
+                verbosity: 0 // Performance: less logging
+            });
+
             const pdf = await loadingTask.promise;
 
             setPdfPages(pdf.numPages);
@@ -69,59 +90,58 @@ export default function LegacyPDFViewer({ file, onOpenRsvp, onOpenMap, onLoad }:
             if (!wrapper) return;
             wrapper.innerHTML = '';
 
+            // Optimization: Detect mobile to adjust quality/speed
+            const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
             for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
                 const page = await pdf.getPage(pageNum);
 
-                // PAGE CONTAINER
                 const div = document.createElement('div');
-                // Use absolute positioning for the overlap trick
                 div.className = 'relative w-full overflow-hidden flex flex-col items-center justify-center p-0 m-0 bg-[#fddbe6]';
-                // Strict zeroing
                 div.style.lineHeight = '0';
                 div.style.fontSize = '0';
-                // Aggressive overlap: each page after the first moves up slightly
-                if (pageNum > 1) {
-                    div.style.marginTop = '-2px';
-                }
+                if (pageNum > 1) div.style.marginTop = '-2px';
                 wrapper.appendChild(div);
 
-                // Optimized scale for mobile devices
-                // Reverted to 1.0 for maximum stability on mobile browsers
-                const isMobile = window.innerWidth < 768;
                 const scale = isMobile ? 1.0 : 2.0;
                 const viewport = page.getViewport({ scale: scale });
 
                 const canvas = document.createElement('canvas');
-                // Alpha: false improves performance by telling browser we don't need transparency
-                const context = canvas.getContext('2d', { alpha: false });
+                // Performance: alpha false and willReadFrequently for faster canvas ops
+                const context = canvas.getContext('2d', {
+                    alpha: false,
+                    willReadFrequently: false
+                });
+
                 canvas.width = viewport.width;
                 canvas.height = viewport.height;
-
                 canvas.style.width = '100.2%';
                 canvas.style.height = 'auto';
                 canvas.style.display = 'block';
                 canvas.style.margin = '0 auto';
-                canvas.style.border = 'none';
-                canvas.style.backgroundColor = 'white'; // Force white background
-                canvas.style.imageRendering = 'auto'; // Default rendering for performance
+                canvas.style.backgroundColor = 'white';
 
                 div.appendChild(canvas);
-                await page.render({ canvasContext: context, viewport: viewport }).promise;
 
-                // LAYER FOR BUTTONS
+                // Optimized render with intent 'print' for faster execution if supported
+                await page.render({
+                    canvasContext: context,
+                    viewport: viewport,
+                    intent: 'display',
+                    enableWebGL: true // Use hardware acceleration if available
+                }).promise;
+
                 const overlay = document.createElement('div');
                 overlay.className = "page-overlay";
                 Object.assign(overlay.style, { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10 });
                 div.appendChild(overlay);
 
-                // Fixed positions from the user's setup
                 const defMap = { top: '75.594%', left: '12.558%', width: '32.791%' };
                 const defRsvp = { top: '81.185%', left: '47.442%', width: '32.791%' };
 
                 const mapPos = savedPos['map-btn'] || defMap;
                 const rsvpPos = savedPos['rsvp-btn'] || defRsvp;
 
-                // Only add buttons to the last page (or page 1 if only 1 page)
                 if (pageNum === pdf.numPages) {
                     createButton(overlay, 'map-btn', mapPos.top, mapPos.left, mapPos.width, ICON_MAP, onOpenMap);
                     createButton(overlay, 'rsvp-btn', rsvpPos.top, rsvpPos.left, rsvpPos.width, ICON_CHECK, onOpenRsvp);
