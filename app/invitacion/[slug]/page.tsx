@@ -37,7 +37,7 @@ export default function InvitationPage({ params }: { params: Promise<{ slug: str
     }
 
     const handleOpenMap = () => {
-        window.open('https://maps.app.goo.gl/4hYAJJ7P2VfVS9uR6', '_blank');
+        window.open('https://maps.app.goo.gl/2t5b9jRMXL6qbFj9A', '_blank');
     };
 
     if (isValid === false) return notFound();

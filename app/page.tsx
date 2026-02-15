@@ -19,7 +19,7 @@ export default function Home() {
   const [invitationLoaded, setInvitationLoaded] = useState(false);
 
   const handleOpenMap = () => {
-    window.open('https://maps.app.goo.gl/4hYAJJ7P2VfVS9uR6', '_blank');
+    window.open('https://maps.app.goo.gl/2t5b9jRMXL6qbFj9A', '_blank');
   };
 
   return (

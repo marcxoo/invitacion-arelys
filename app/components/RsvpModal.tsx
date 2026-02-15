@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Users, User } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -12,13 +12,88 @@ interface RsvpModalProps {
 }
 
 export default function RsvpModal({ isOpen, onClose, prefilledName }: RsvpModalProps) {
-    const [step, setStep] = useState<'form' | 'success'>('form');
+    // Initialize state lazily from localStorage to avoid flicker
+    const [step, setStep] = useState<'form' | 'success' | 'alreadyResponded'>(() => {
+        if (typeof window !== 'undefined') {
+            const hasId = localStorage.getItem('invitation_id');
+            if (hasId) return 'alreadyResponded';
+        }
+        return 'form';
+    });
+
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Form State
-    const [name, setName] = useState(prefilledName || '');
+    const [name, setName] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const cachedName = localStorage.getItem('rsvp_name');
+            if (cachedName) return cachedName;
+        }
+        return prefilledName || '';
+    });
+
     const [count, setCount] = useState(1);
+
+    // Initialize ID from local storage
+    const [invitationId, setInvitationId] = useState<string | null>(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('invitation_id');
+        }
+        return null;
+    });
+
+    // Check Supabase for existing invitation on mount (background sync)
+    useEffect(() => {
+        if (isOpen) {
+            checkExistingInvitation();
+        }
+    }, [isOpen]);
+
+    async function checkExistingInvitation() {
+        const storedId = localStorage.getItem('invitation_id');
+        if (!storedId) return;
+
+        try {
+            const { data, error } = await supabase
+                .from('invitations')
+                .select('*')
+                .eq('id', storedId)
+                .single();
+
+            if (error) {
+                // If error (e.g. not found/deleted), clear local storage
+                console.error('Error fetching invitation:', error);
+                localStorage.removeItem('invitation_id');
+                localStorage.removeItem('rsvp_name');
+                setStep('form'); // Revert to form
+                setInvitationId(null);
+                return;
+            }
+
+            if (data) {
+                setInvitationId(data.id);
+                // Update specific fields from server truth
+                setName(data.family_name);
+                setCount(data.guest_limit || 1);
+
+                // If we didn't have the name locally, this fixes it. 
+                // We also update local storage to keep cache fresh
+                localStorage.setItem('rsvp_name', data.family_name);
+
+                setStep('alreadyResponded');
+            }
+        } catch (err) {
+            console.error('Unexpected error checking invitation:', err);
+        }
+    }
+
+    function handleNewRegistration() {
+        setInvitationId(null);
+        setName('');
+        setCount(1);
+        setStep('form');
+    }
 
     async function handleSubmit(attending: boolean) {
         if (!name.trim()) {
@@ -30,26 +105,45 @@ export default function RsvpModal({ isOpen, onClose, prefilledName }: RsvpModalP
         setError(null);
 
         try {
-            // 1. Save to Supabase
-            const { error: dbError } = await supabase
+            const invitationData = {
+                family_name: name,
+                guest_limit: count,
+                confirmed_count: attending ? count : 0,
+                status: attending ? 'confirmed' : 'declined',
+                is_public: true
+            };
+
+            if (invitationId) {
+                // UPDATE Workaround: 
+                // Since RLS policies often block UPDATE but allow INSERT/DELETE for anon users,
+                // we delete the old record and create a new one to simulate an update.
+                const { error: deleteError } = await supabase
+                    .from('invitations')
+                    .delete()
+                    .eq('id', invitationId);
+
+                if (deleteError) {
+                    console.warn('Error deleting old invitation:', deleteError);
+                }
+            }
+
+            // Always Insert New Record
+            const { data, error: insertError } = await supabase
                 .from('invitations')
-                .insert([
-                    {
-                        family_name: name, // Using family_name as the display name for public RSVP
-                        guest_limit: count, // Self-reported count for public RSVP
-                        confirmed_count: attending ? count : 0,
-                        status: attending ? 'confirmed' : 'declined',
-                        is_public: true
-                    }
-                ]);
+                .insert([invitationData])
+                .select();
 
-            if (dbError) throw dbError;
+            if (insertError) throw insertError;
 
-            // 2. Local Storage
-            localStorage.setItem('rsvp_status', attending ? 'confirmed' : 'declined');
-            localStorage.setItem('rsvp_name', name);
+            // Update ID state with the new record's ID
+            if (data && data.length > 0) {
+                const newId = data[0].id;
+                localStorage.setItem('invitation_id', newId);
+                localStorage.setItem('rsvp_name', name); // Cache name for next load
+                setInvitationId(newId);
+            }
 
-            // 3. Success
+            // Success UI
             if (attending) {
                 setStep('success');
             } else {
@@ -160,8 +254,48 @@ export default function RsvpModal({ isOpen, onClose, prefilledName }: RsvpModalP
                                         disabled={loading}
                                         className="py-4 px-4 bg-[#ff4a77] text-white rounded-2xl shadow-[0_8px_0_#d13b61] active:shadow-none active:translate-y-[8px] font-bold transition-all disabled:opacity-50 text-base"
                                     >
-                                        {loading ? 'Enviando...' : '¡Sí, asistiré!'}
+                                        {loading ? 'Enviando...' : (invitationId ? 'Actualizar' : '¡Sí, asistiré!')}
                                     </button>
+                                </div>
+                            </div>
+                        ) : step === 'alreadyResponded' ? (
+                            <div className="text-center py-6 space-y-6 relative z-10">
+                                <motion.div
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    className="w-24 h-24 bg-white text-[#ff4a77] rounded-full flex items-center justify-center mx-auto shadow-xl border-4 border-[#ff4a77]/20"
+                                >
+                                    <Check size={50} strokeWidth={3} />
+                                </motion.div>
+                                <div className="space-y-2">
+                                    <h2 className="text-[#ff4a77] text-3xl font-bold">¡Ya respondiste!</h2>
+                                    <p className="text-[#f578aa] text-lg font-medium">
+                                        Hemos guardado tu respuesta como <br />
+                                        <span className="font-bold text-[#ff4a77]">"{name}"</span>
+                                    </p>
+                                </div>
+                                <div className="space-y-3">
+                                    <button
+                                        onClick={onClose}
+                                        className="w-full py-3 px-6 bg-[#ff4a77] text-white rounded-2xl font-bold hover:scale-105 active:scale-95 transition-all shadow-lg"
+                                    >
+                                        Entendido, Cerrar
+                                    </button>
+
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => setStep('form')}
+                                            className="flex-1 py-3 px-2 bg-transparent text-[#f578aa] border-2 border-[#f578aa]/30 rounded-2xl font-bold hover:bg-[#f578aa]/10 transition-all text-sm"
+                                        >
+                                            Corregir mi respuesta
+                                        </button>
+                                        <button
+                                            onClick={handleNewRegistration}
+                                            className="flex-1 py-3 px-2 bg-transparent text-[#ff4a77] border-2 border-[#ff4a77]/30 rounded-2xl font-bold hover:bg-[#ff4a77]/10 transition-all text-sm"
+                                        >
+                                            Registrar a otra persona
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ) : (

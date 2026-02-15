@@ -110,7 +110,7 @@ export default function AdminDashboard() {
                     <div className="absolute -top-4 -right-4 w-16 h-16 bg-[#fddbe6] rounded-full opacity-50" />
                     <span className="text-[#ff4a77] font-bold uppercase text-xs tracking-wider block mb-2">Total de Personas</span>
                     <div className="text-7xl font-black text-[#ff4a77]">{stats.people}</div>
-                    <div className="text-sm font-bold text-[#f578aa] mt-2">¡A celebrar!</div>
+
                 </div>
                 <div className="bg-white/80 backdrop-blur-sm p-8 rounded-[30px] border-2 border-[#f578aa]/30 shadow-xl text-center group hover:scale-105 transition-all">
                     <span className="text-gray-400 font-bold uppercase text-xs tracking-wider block mb-2">Declinaron</span>
