@@ -110,7 +110,8 @@ export default function RsvpModal({ isOpen, onClose, prefilledName }: RsvpModalP
                 guest_limit: count,
                 confirmed_count: attending ? count : 0,
                 status: attending ? 'confirmed' : 'declined',
-                is_public: true
+                is_public: true,
+                event_slug: 'invitacion-arelys'
             };
 
             if (invitationId) {

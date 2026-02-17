@@ -24,6 +24,7 @@ export default function AdminDashboard() {
         const { data, error } = await supabase
             .from('invitations')
             .select('*')
+            .eq('event_slug', 'invitacion-arelys')
             .order('created_at', { ascending: false });
 
         if (error) {
@@ -65,7 +66,7 @@ export default function AdminDashboard() {
     async function handleDeleteAll() {
         if (prompt("ADMIN PASSWORD:") !== "arelys3") return alert("Incorrecto");
         if (!confirm("¿Estás seguro?")) return;
-        await supabase.from('invitations').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        await supabase.from('invitations').delete().eq('event_slug', 'invitacion-arelys');
         fetchGuests();
     }
 
